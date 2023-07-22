@@ -46,14 +46,28 @@ def audio_roll(waveform):
     return np.roll(waveform, shift)
 
 def convert_mel_spectrogram(waveform, sample_rate):
-    top_db = 80
+    spec = librosa.feature.melspectrogram(y=waveform, sr=sample_rate, n_mels=64)
 
-    spec = librosa.feature.melspectrogram(y=waveform, sr=sample_rate, n_fft=n_fft, hop_length=hop_len, n_mels=n_mels)
-
-    # Convert to decibels
-    spec_db = librosa.power_to_db(spec, ref=np.max, top_db=top_db)
+    spec_db = librosa.power_to_db(spec, ref=np.max, top_db=80)
 
     return spec_db
+
+def data_masking(spec, per_mask=0.05, n_freq_masks=1, n_time_masks=1):
+    n_mels, n_steps = spec.shape
+    mask_value = spec.mean()
+    aug_spec = spec.copy()
+
+    freq_mask_param = int(per_mask * n_mels)
+    for _ in range(n_freq_masks):
+        f_start = np.random.randint(0, n_mels - freq_mask_param)
+        aug_spec[f_start:f_start + freq_mask_param, :] = mask_value
+
+    time_mask_param = int(per_mask * n_steps)
+    for _ in range(n_time_masks):
+        t_start = np.random.randint(0, n_steps - time_mask_param)
+        aug_spec[:, t_start:t_start + time_mask_param] = mask_value
+
+    return aug_spec
 
 class AudioDataset(Dataset):
     def __init__(self, file_paths, labels):
@@ -68,4 +82,10 @@ class AudioDataset(Dataset):
         waveform, sample_rate = librosa.load(file_path, sr=None)
         label = self.labels[index]
 
-        return waveform, label
+        waveform_sh = adjust_audio_shape(waveform)
+        waveform_adp = adjust_audio_duration(waveform_sh, sample_rate, target_duration=0.9)
+        waveform_rld = audio_roll(waveform_adp)
+        spec = convert_mel_spectrogram(waveform_rld, sample_rate)
+        spec_mask = data_masking(spec, per_mask=0.05, n_freq_masks=1, n_time_masks=1)
+
+        return spec_mask, label
