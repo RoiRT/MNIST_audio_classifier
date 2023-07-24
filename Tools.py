@@ -1,10 +1,8 @@
 import os
-import torch
 import librosa
 import random
 import numpy as np
-from torch.utils.data import Dataset, DataLoader
-from IPython.display import Audio
+from torch.utils.data import Dataset
 
 def load_audio_dataset(root_dir):
     file_paths = []
@@ -17,7 +15,7 @@ def load_audio_dataset(root_dir):
                 if file_name.endswith('.wav'):
                     file_path = os.path.join(folder_path, file_name)
                     file_paths.append(file_path)
-                    labels.append(file_name[0])
+                    labels.append(int(file_name[0]))
 
     dataset = (file_paths, labels)
 
@@ -25,47 +23,47 @@ def load_audio_dataset(root_dir):
 
 def adjust_audio_shape(waveform):
     if len(waveform.shape) > 1:
-        return waveform.reshape(-1)
+        return waveform
 
-    return waveform
+    return waveform.reshape(1, -1)
 
 def adjust_audio_duration(waveform, sample_rate, target_duration=0.9):
     max_len = int(target_duration * sample_rate)
 
-    if waveform.shape[0] <= max_len:
-        begin_len = random.randint(0, max_len - waveform.shape[0])
-        end_len = max_len - waveform.shape[0] - begin_len
+    if waveform.shape[1] <= max_len:
+        begin_len = random.randint(0, max_len - waveform.shape[1])
+        end_len = max_len - waveform.shape[1] - begin_len
 
-        audio = np.concatenate((np.zeros(begin_len), waveform, np.zeros(end_len)), axis=0)
+        audio = np.concatenate((np.zeros(begin_len).reshape(1, -1), waveform, np.zeros(end_len).reshape(1, -1)), axis=1)
         return audio
 
-    return waveform[:max_len]
+    return waveform[:, :max_len]
 
 def audio_roll(waveform):
-    shift = int(random.uniform(-0.5, 0.5) * 0.25 * waveform.shape[0])
+    shift = int(random.uniform(-0.5, 0.5) * 0.25 * waveform.shape[1])
     return np.roll(waveform, shift)
 
 def convert_mel_spectrogram(waveform, sample_rate):
     spec = librosa.feature.melspectrogram(y=waveform, sr=sample_rate, n_mels=64)
 
-    spec_db = librosa.power_to_db(spec, ref=np.max, top_db=80)
+    spec_db = librosa.power_to_db(spec, ref=np.min, top_db=80)
 
     return spec_db
 
 def data_masking(spec, per_mask=0.05, n_freq_masks=1, n_time_masks=1):
-    n_mels, n_steps = spec.shape
+    _, n_mels, n_steps = spec.shape
     mask_value = spec.mean()
     aug_spec = spec.copy()
 
     freq_mask_param = int(per_mask * n_mels)
     for _ in range(n_freq_masks):
         f_start = np.random.randint(0, n_mels - freq_mask_param)
-        aug_spec[f_start:f_start + freq_mask_param, :] = mask_value
+        aug_spec[:, f_start:f_start + freq_mask_param, :] = mask_value
 
     time_mask_param = int(per_mask * n_steps)
     for _ in range(n_time_masks):
         t_start = np.random.randint(0, n_steps - time_mask_param)
-        aug_spec[:, t_start:t_start + time_mask_param] = mask_value
+        aug_spec[:, :, t_start:t_start + time_mask_param] = mask_value
 
     return aug_spec
 
