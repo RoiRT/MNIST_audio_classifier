@@ -22,10 +22,13 @@ def load_audio_dataset(root_dir):
     return dataset
 
 def adjust_audio_shape(waveform):
-    if len(waveform.shape) > 1:
-        return waveform
-
-    return waveform.reshape(1, -1)
+    if len(waveform.shape) == 1:
+        return waveform.reshape(1, -1)
+    else:
+        if waveform.shape[0] == 1:
+            return waveform
+        elif waveform.shape[0] == 2:
+            return waveform[0].reshape(1, -1)
 
 def adjust_audio_duration(waveform, sample_rate, target_duration=0.9):
     max_len = int(target_duration * sample_rate)
