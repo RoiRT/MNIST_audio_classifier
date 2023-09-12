@@ -32,7 +32,6 @@ model = torch.nn.Sequential(
     torch.nn.MaxPool2d(kernel_size=2),
     torch.nn.Flatten(),
     torch.nn.Linear(16 * 8 * 10, 10),
-    torch.nn.Softmax(dim=1)
 )
 
 optimizer = torch.optim.Adam(model.parameters())
